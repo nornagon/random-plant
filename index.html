@@ -1,0 +1,301 @@
+<!doctype html>
+<title>Random Plant</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://cdn.skypack.dev/dialog-polyfill@0.5.6/dist/dialog-polyfill.css">
+<style>
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+
+body {
+  padding: 10px;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  grid-template-rows: auto 1fr auto;
+}
+.title {
+  font-family: sans-serif;
+  font-size: 150%;
+  text-align: center;
+}
+.card {
+  display: grid;
+  aspect-ratio: 1;
+  max-width: 100%;
+  max-height: 100%;
+  column-gap: 1vmin;
+  row-gap: 1vmin;
+  overflow: hidden;
+}
+.square {
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  position: relative;
+  border-radius: 5px;
+  box-shadow: 0px 3px 7px rgba(0, 0, 0, 15%);
+  overflow: hidden;
+}
+.square .image {
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: -1;
+}
+.square label {
+  cursor: inherit;
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background: rgba(0, 0, 0, 50%);
+  color: white;
+  font-family: sans-serif;
+  font-size: 14px;
+  padding: 1px 4px;
+}
+.square.observed:after {
+  content: '✔\0fe0e';
+  color: lightgreen;
+  font-size: 6vmin;
+  line-height: 0;
+  text-shadow: 0px 0px 8px rgba(0, 0, 0, 80%);
+}
+.square.observed .image {
+  filter: brightness(0.7);
+}
+.square:hover .image {
+  filter: brightness(1.2) saturate(1.2);
+}
+web-complete .suggestion {
+  display: block;
+}
+web-complete .active {
+  background: blue;
+}
+
+dialog::backdrop, dialog + .backdrop {
+  background: rgba(0, 0, 0, 50%);
+}
+dialog h1 {
+  margin: 0;
+  font-family: sans-serif;
+  font-size: 150%;
+}
+
+</style>
+<script type="module" src="https://unpkg.com/web-complete"></script>
+<script type="module">
+import { h, render } from 'https://cdn.skypack.dev/preact@10.10.5';
+import { useState, useLayoutEffect, useEffect, useRef } from 'https://cdn.skypack.dev/preact@10.10.5/hooks';
+import dialogPolyfill from 'https://cdn.skypack.dev/dialog-polyfill'
+
+function shuffle(rand, array) {
+  let currentIndex = array.length,  randomIndex;
+
+  // While there remain elements to shuffle...
+  while (currentIndex != 0) {
+
+    // Pick a remaining element...
+    randomIndex = Math.floor(rand() * currentIndex);
+    currentIndex--;
+
+    // And swap it with the current element.
+    [array[currentIndex], array[randomIndex]] = [
+      array[randomIndex], array[currentIndex]];
+  }
+
+  return array;
+}
+
+function capitalize(str) {
+  return str[0].toUpperCase() + str.substr(1)
+}
+
+function capitalizePiece(piece) {
+  // \p{Word} matches any word in Unicode, \w does not, apparently
+  // https://stackoverflow.com/questions/3576232/how-to-match-unicode-words-with-ruby-1-9#3576559
+  let bits
+
+  // Match contractions like d'Silva
+  if (bits = /^([a-z]['’])(\w+)/.exec(piece))
+    return `${bits[1]}${capitalize(bits[2])}`
+  // Match okina and similar leading punctuation characters that will match \p{Word}
+  else if (bits = /^([ʻ])(\w+)/.exec(piece))
+    return `${bits[1]}${capitalize(bits[2])}`
+  else if (bits = /(.*?)(\w+)(.*)/.exec(piece))
+    return `${bits[1]}${capitalize(bits[2])}${bits[3]}`
+  else
+    return piece
+
+}
+
+// https://github.com/inaturalist/inaturalist/blob/1606e8963a351b9d685a2bac64d40b7f955135e1/app/helpers/taxa_helper.rb#L184
+function capitalizeName(comname) {
+  const uncapitalized = [
+    "à",
+    "a",
+    "and",
+    "con",
+    "da",
+    "dal",
+    "de",
+    "dei",
+    "del",
+    "des",
+    "di",
+    "du",
+    "e",
+    "in",
+    "la",
+    "o",
+    "on",
+    "of",
+    "the"
+  ]
+  const comname_pieces = comname.split( /\s+/ )
+  return comname_pieces.map((piece, i) => {
+    if (i > 0 && uncapitalized.includes( piece.toLowerCase() ))
+      return piece.toLowerCase()
+    else if (i === comname_pieces.length - 1)
+      return piece.split("-").map((s) =>
+        uncapitalized.includes(s.toLowerCase())
+          ? s.toLowerCase()
+          : capitalizePiece(s)
+      ).join( "-" )
+    else
+      return capitalizePiece(piece)
+  }).join(" ")
+}
+
+
+function Square({taxon, observed}) {
+  return h('a', {
+    class: ['square', observed ? 'observed' : ''].join(' '),
+    href: 'https://inaturalist.org/taxa/' + taxon.id,
+  }, [
+    h('div', {class: 'image', style: {'background-image': `url(${taxon.default_photo.medium_url})`}}),
+    h('label', null, taxon.preferred_common_name ? capitalizeName(taxon.preferred_common_name): taxon.name)
+  ])
+}
+
+const northAmerica = 97394;
+const initialLocation = (location.hash.substr(1)|0) || northAmerica;
+
+function App() {
+  const [species, setSpecies] = useState(null)
+  const [placeId, setPlaceId] = useState(initialLocation)
+  const [place, setPlace] = useState(null)
+  const [observations, setObservations] = useState(null)
+  const [choosingLocation, setChoosingLocation] = useState(false)
+
+  useEffect(() => {
+    location.hash = placeId
+    const controller = new AbortController();
+    const { signal } = controller;
+    fetch(`https://api.inaturalist.org/v1/places/${encodeURIComponent(placeId)}`, {signal}).then(r => r.json()).then(place => {
+      setPlace(place.results[0])
+    })
+    return () => { controller.abort() }
+  }, [placeId])
+
+  useEffect(() => {
+    function hashchange() {
+      setPlaceId((location.hash.substr(1)|0) || northAmerica)
+    }
+    window.addEventListener('hashchange', hashchange)
+    return () => {
+      window.removeEventListener('hashchange', hashchange)
+    }
+  }, [])
+
+  const gridSize = 3
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+    setSpecies(null)
+    const url = new URL('https://api.inaturalist.org/v1/observations/species_counts')
+    const params = {
+      verifiable: true,
+      spam: false,
+      place_id: placeId,
+      locale: 'en-US',
+      preferred_place_id: placeId,
+      hrank: 'species',
+      photos: true,
+      taxon_id: 47126,
+    }
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
+    fetch(url, { signal }).then(r => r.json()).then(species => {
+      const squares = shuffle(Math.random, species.results.slice()).slice(0, gridSize * gridSize)
+      setSpecies(squares)
+    })
+    return () => { controller.abort() }
+  }, [placeId])
+
+  useLayoutEffect(() => {
+    if (choosingLocation) {
+      const dialog = document.querySelector('dialog')
+      dialogPolyfill.registerDialog(dialog)
+      dialog.showModal()
+    }
+  }, [choosingLocation])
+
+  return [
+    h('div', {class: 'title'}, [
+      `iNaturalist Random Plants // `,
+      place
+        ? h('span', {onClick: () => setChoosingLocation(true), style: {cursor: 'pointer'}}, [
+          h('span', {style: {'text-decoration': 'underline dotted 1px'}}, place.display_name),
+          ' ▾'
+        ])
+        : '...',
+    ]),
+    species
+      ? species.length
+        ? h('div', {class: 'card', style: `grid-template-columns: repeat(${gridSize}, 1fr)`},
+            species.map((s) => h(Square, {taxon: s.taxon, observed: observations?.some(obs => obs.taxon.id === s.taxon.id)})))
+        : h('div', null, 'no species')
+      : h('div', null, 'loading...'),
+    choosingLocation ? h('dialog', {onclose: () => {
+      setChoosingLocation(false)
+    }}, h(LocationChooser, {onchange: (id) => { setPlaceId(id); setChoosingLocation(false) }})) : null,
+  ];
+}
+
+function LocationChooser({onchange}) {
+  const ref = useRef(null)
+  useLayoutEffect(() => {
+  setTimeout(() => {
+    ref.current?.querySelector('input')?.focus()
+    }, 100)
+  }, [])
+  return h('div', {}, [
+    h('h1', null, 'Change Location'),
+    h('web-complete', {
+      ref,
+      suggestionGenerator: async (text) => {
+        const suggestions = await fetch(
+          'https://api.inaturalist.org/v1/search?sources=places&q='+encodeURIComponent(text)
+        ).then(x => x.json())
+        return suggestions.results.map(r => {
+          return {
+            text: r.record.display_name,
+            value: r.record
+          }
+        })
+      },
+      maxSuggestions: 10,
+      minInput: 2,
+      onselected: (e) => {
+        onchange(e.detail.value.id)
+      }
+    })
+  ])
+}
+
+render(h(App), document.body)
+</script>
