@@ -28,6 +28,9 @@ body {
   row-gap: 1vmin;
   overflow: hidden;
 }
+.attribution {
+  font-style: italic;
+}
 .square {
   display: grid;
   place-items: center;
@@ -260,6 +263,18 @@ function App() {
             species.map((s) => h(Square, {taxon: s.taxon, observed: observations?.some(obs => obs.taxon.id === s.taxon.id)})))
         : h('div', null, 'no species')
       : h('div', null, 'loading...'),
+    // Attribution to @nornagon
+    h('div', {class: 'attribution'}, [
+      'Made by ',
+      h('a', {href: 'https://nornagon.net'}, 'nornagon'),
+      ' using the ',
+      h('a', {href: 'https://www.inaturalist.org'}, 'iNaturalist'),
+      ' API.',
+      // Link to GitHub repo
+      ' Source code on ',
+      h('a', {href: 'https://github.com/nornagon/random-plant'}, 'GitHub'),
+      '.',
+    ]),
     choosingLocation ? h('dialog', {onclose: () => {
       setChoosingLocation(false)
     }}, h(LocationChooser, {onchange: (id) => { setPlaceId(id); setChoosingLocation(false) }})) : null,
