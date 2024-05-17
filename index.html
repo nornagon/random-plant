@@ -185,10 +185,12 @@ function Square({taxon, observed}) {
 }
 
 const defaultLocationSlug = 'north-america';
+const kingdomPlantaeId = 47126;
 const initialLocationSlug = location.hash.substr(1) || defaultLocationSlug;
 
 function App() {
   const [species, setSpecies] = useState(null)
+  const [squares, setSquares] = useState(null)
   const [placeSlug, setPlaceSlug] = useState(initialLocationSlug)
   const [place, setPlace] = useState(null)
   const [observations, setObservations] = useState(null)
@@ -217,13 +219,12 @@ function App() {
 
   const gridSize = 3
 
-  const [dummy, reloadPlants] = useState({})
-
   useEffect(() => {
     if (!place) return;
     const controller = new AbortController();
     const { signal } = controller;
     setSpecies(null)
+    setSquares(null)
     const url = new URL('https://api.inaturalist.org/v1/observations/species_counts')
     const params = {
       verifiable: true,
@@ -233,16 +234,22 @@ function App() {
       preferred_place_id: place.id,
       hrank: 'species',
       photos: true,
-      taxon_id: 47126,
+      taxon_id: kingdomPlantaeId,
     }
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
     fetch(url, { signal }).then(r => r.json()).then(species => {
       if (controller.signal.aborted) return
-      const squares = shuffle(Math.random, species.results.slice()).slice(0, gridSize * gridSize)
-      setSpecies(squares)
+      setSpecies(species.results)
     })
     return () => { controller.abort() }
-  }, [place, dummy])
+  }, [place])
+
+  const [dummy, reloadPlants] = useState({})
+
+  useEffect(() => {
+    if (!species) return;
+    setSquares(shuffle(Math.random, species.slice()).slice(0, gridSize * gridSize))
+  }, [species, dummy])
 
   useLayoutEffect(() => {
     if (choosingLocation) {
@@ -262,13 +269,13 @@ function App() {
         ])
         : '...',
     ]),
-    species
-      ? species.length
+    squares
+      ? squares.length
         ? h('div', {class: 'card', style: `grid-template-columns: repeat(${gridSize}, 1fr)`},
-            species.map((s) => h(Square, {taxon: s.taxon, observed: observations?.some(obs => obs.taxon.id === s.taxon.id)})))
+            squares.map((s) => h(Square, {taxon: s.taxon, observed: observations?.some(obs => obs.taxon.id === s.taxon.id)})))
         : h('div', null, 'no species')
       : h('div', null, 'loading...'),
-    species?.length ? h('div', {class: 'controls'}, [
+    squares?.length ? h('div', {class: 'controls'}, [
       h('button', {onClick: () => reloadPlants({})}, '🔁 More plants'),
     ]) : null,
     h('div', {class: 'attribution'}, [
