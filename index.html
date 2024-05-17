@@ -184,29 +184,30 @@ function Square({taxon, observed}) {
   ])
 }
 
-const northAmerica = 97394;
-const initialLocation = (location.hash.substr(1)|0) || northAmerica;
+const defaultLocationSlug = 'north-america';
+const initialLocationSlug = location.hash.substr(1) || defaultLocationSlug;
 
 function App() {
   const [species, setSpecies] = useState(null)
-  const [placeId, setPlaceId] = useState(initialLocation)
+  const [placeSlug, setPlaceSlug] = useState(initialLocationSlug)
   const [place, setPlace] = useState(null)
   const [observations, setObservations] = useState(null)
   const [choosingLocation, setChoosingLocation] = useState(false)
 
   useEffect(() => {
-    location.hash = placeId
+    location.hash = placeSlug
     const controller = new AbortController();
     const { signal } = controller;
-    fetch(`https://api.inaturalist.org/v1/places/${encodeURIComponent(placeId)}`, {signal}).then(r => r.json()).then(place => {
+
+    fetch(`https://api.inaturalist.org/v1/places/${encodeURIComponent(placeSlug)}`, {signal}).then(r => r.json()).then(place => {
       setPlace(place.results[0])
     })
     return () => { controller.abort() }
-  }, [placeId])
+  }, [placeSlug])
 
   useEffect(() => {
     function hashchange() {
-      setPlaceId((location.hash.substr(1)|0) || northAmerica)
+      setPlaceSlug(location.hash.substr(1) || defaultLocationSlug)
     }
     window.addEventListener('hashchange', hashchange)
     return () => {
@@ -219,6 +220,7 @@ function App() {
   const [dummy, reloadPlants] = useState({})
 
   useEffect(() => {
+    if (!place) return;
     const controller = new AbortController();
     const { signal } = controller;
     setSpecies(null)
@@ -226,20 +228,21 @@ function App() {
     const params = {
       verifiable: true,
       spam: false,
-      place_id: placeId,
+      place_id: place.id,
       locale: 'en-US',
-      preferred_place_id: placeId,
+      preferred_place_id: place.id,
       hrank: 'species',
       photos: true,
       taxon_id: 47126,
     }
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
     fetch(url, { signal }).then(r => r.json()).then(species => {
+      if (controller.signal.aborted) return
       const squares = shuffle(Math.random, species.results.slice()).slice(0, gridSize * gridSize)
       setSpecies(squares)
     })
     return () => { controller.abort() }
-  }, [placeId, dummy])
+  }, [place, dummy])
 
   useLayoutEffect(() => {
     if (choosingLocation) {
@@ -279,7 +282,7 @@ function App() {
     ]),
     choosingLocation ? h('dialog', {onclose: () => {
       setChoosingLocation(false)
-    }}, h(LocationChooser, {onchange: (id) => { setPlaceId(id); setChoosingLocation(false) }})) : null,
+    }}, h(LocationChooser, {onchange: (slug) => { setPlaceSlug(slug); setChoosingLocation(false) }})) : null,
   ];
 }
 
@@ -308,7 +311,7 @@ function LocationChooser({onchange}) {
       maxSuggestions: 10,
       minInput: 2,
       onselected: (e) => {
-        onchange(e.detail.value.id)
+        onchange(e.detail.value.slug)
       }
     })
   ])
