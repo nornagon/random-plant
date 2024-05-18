@@ -20,18 +20,19 @@ body {
   font-size: 150%;
   text-align: center;
 }
-.card-container {
-  width: 100%;
-  display: grid;
-  justify-items: center;
-}
 .card {
   display: grid;
   aspect-ratio: 1;
-  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   column-gap: 1vmin;
   row-gap: 1vmin;
   overflow: hidden;
+}
+.safari .card {
+  aspect-ratio: auto;
+  width: 100%;
+  height: 100%;
 }
 .attribution {
   font-style: italic;
@@ -99,6 +100,10 @@ dialog h1 {
 import { h, render } from 'https://cdn.skypack.dev/preact@10.10.5';
 import { useState, useLayoutEffect, useEffect, useRef } from 'https://cdn.skypack.dev/preact@10.10.5/hooks';
 import dialogPolyfill from 'https://cdn.skypack.dev/dialog-polyfill'
+
+if (navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome')) {
+  document.body.classList.add('safari')
+}
 
 function shuffle(rand, array) {
   let currentIndex = array.length,  randomIndex;
@@ -276,8 +281,8 @@ function App() {
     ]),
     squares
       ? squares.length
-        ? h('div', {class: 'card-container'}, h('div', {class: 'card', style: `grid-template-columns: repeat(${gridSize}, 1fr)`},
-            squares.map((s) => h(Square, {taxon: s.taxon, observed: observations?.some(obs => obs.taxon.id === s.taxon.id)}))))
+        ? h('div', {class: 'card', style: `grid-template-columns: repeat(${gridSize}, 1fr)`},
+            squares.map((s) => h(Square, {taxon: s.taxon, observed: observations?.some(obs => obs.taxon.id === s.taxon.id)})))
         : h('div', null, 'no species')
       : h('div', null, 'loading...'),
     squares?.length ? h('div', {class: 'controls'}, [
